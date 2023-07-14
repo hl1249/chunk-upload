@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh">
+	<head>
+		<meta charset="UTF-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Document</title>
+		<script src="md5.js"></script>
+		<script src="axios.js"></script>
+	</head>
+	<body>
+		<input type="file" name="" id="ipt">
+		<button onclick="cut()">分片</button>
+	</body>
+</html>
+
+<script>
+	const ipt = document.getElementById('ipt')
+	
+	let file;
+	let fileRederInstance = new FileReader()
+	const chunkSize = 5 * 1024 * 1024 // 5MB一片
+	
+	ipt.addEventListener('change', (e) => {
+		console.dir(e.target.files[0])
+		file = e.target.files[0]
+	})
+	
+	const cut = () => {
+		console.log(file)
+		const chunkCount = Math.ceil(file.size / chunkSize) // 总片数
+		fileRederInstance.readAsBinaryString(file)
+		fileRederInstance.addEventListener('load', e => {
+			let fileBolb = e.target.result
+			fileMD5 = md5(fileBolb)
+			console.log('fileMD5', fileMD5)
+			console.log("文件未被上传，将分片上传")
+			readChunkMD5()
+		})
+		
+		const getChunkInfo = (file, currentChunk, chunkSize) => {
+			let start = currentChunk * chunkSize
+			let end = Math.min(file.size, start + chunkSize)
+			let chunk = file.slice(start, end)
+			return { start, end, chunk }
+		}
+		// 针对每个文件进行chunk处理
+		const readChunkMD5 = async () => {
+			// 针对单个文件进行chunk上传
+			for (var i = 0; i < chunkCount; i++) {
+				const { chunk } = getChunkInfo(file, i, chunkSize)
+				console.log("总片数" + chunkCount)
+				console.table(chunk);
+				await upload({chunk,currentChunk:i,chunkCount })
+				// console.dir("片数据" + chunk)
+				console.log("分片后的数据---测试：" + i)
+			}
+		}
+	}
+	
+	function upload(chunkInfo){
+		return new Promise((r,v)=>{
+			let fetchForm = new FormData()
+			fetchForm.append('file',chunkInfo.chunk)
+			fetchForm.append('chunkNumber',chunkInfo.currentChunk+1)
+			fetchForm.append('currentChunkSize',chunkInfo.chunk.size)
+			fetchForm.append('totalChunks',chunkInfo.chunkCount)
+			fetchForm.append('chunkSize',chunkSize)
+			fetchForm.append('filename',file.name)
+			// POST
+			axios({
+			  url: '/upload.php',
+			  method: 'post',
+			  data: fetchForm,
+			  headers: {
+			    token: 'http-test'
+			  }
+			}).then(res => {
+			  console.log(res.data);
+			  setTimeout(()=>{
+				  r(true)
+			  },5000)
+			});
+		})
+	}
+</script>
